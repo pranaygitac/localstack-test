@@ -47,13 +47,3 @@ module "eks" {
   tags = local.tags
 }
 
-provider "kubectl" {
-  config_context_cluster = local.name
-  load_config_file       = false
-  host = "http://localhost:4566"
-  validate_tls = false
-}
-
-output "kubeconfig" {
-  value = provider.kubectl.kubeconfig
-}
