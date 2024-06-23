@@ -45,12 +45,53 @@ provider "aws" {
   }
 }
 
-resource "aws_instance" "app_server" {
-  ami           = "ami-830c94e3"
-  instance_type = "t2.micro"
-  count = 100
-  tags = {
-    Name = "Server${count.index + 1}"
-  }
+resource "aws_iam_role" "eks_cluster_role" {
+  name                 = "eks-cluster-role"
+  assume_role_policy   = jsonencode({
+    Version            = "2012-10-17",
+    Statement          = [{
+      Effect           = "Allow",
+      Principal        = {
+        Service        = "eks.amazonaws.com"
+      },
+      Action           = "sts:AssumeRole"
+    }]
+  })
 }
 
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy_attachment" {
+  role                 = aws_iam_role.eks_cluster_role.name
+  policy_arn           = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "eks_service_policy_attachment" {
+  role                 = aws_iam_role.eks_cluster_role.name
+  policy_arn           = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+}
+
+resource "aws_eks_cluster" "eks_cluster" {
+  name                  = "eks-cluster"
+  role_arn              = aws_iam_role.eks_cluster_role.arn
+  version               = "1.21"  # Replace with your desired EKS version
+
+  vpc_config {
+    subnet_ids           = ["subnet-xxxxxxxxxx", "subnet-yyyyyyyyyy"]  # Replace with your subnet IDs
+    security_group_ids   = ["sg-xxxxxxxxxx"]  # Replace with your security group ID
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster_policy_attachment,
+    aws_iam_role_policy_attachment.eks_service_policy_attachment,
+  ]
+}
+
+provider "kubectl" {
+  config_context_cluster = aws_eks_cluster.eks_cluster.name
+  load_config_file       = false
+  host = "http://localhost:4566"
+  validate_tls = false
+}
+
+output "kubeconfig" {
+  value = provider.kubectl.kubeconfig
+}
